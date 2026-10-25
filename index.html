@@ -3,83 +3,130 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🦷 치아 해부학 3D 학습 도구</title>
+<title>🦷 3D 치과 치료 시뮬레이터</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif; overflow: hidden; background: #12121f; }
-  #canvas-container { width: 100vw; height: 100vh; }
-
-  #title {
-    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-    color: white; text-align: center; pointer-events: none;
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; }
+  body { overflow: hidden; background: #eef2f5; display: flex; flex-direction: column; height: 100vh; }
+  
+  /* 상단 헤더 (스크린샷 스타일) */
+  header {
+    background: white; height: 60px; display: flex; align-items: center; padding: 0 20px;
+    border-bottom: 1px solid #dde4eb; z-index: 10; box-shadow: 0 2px 10px rgba(0,0,0,0.02);
   }
-  #title h1 { font-size: 20px; margin-bottom: 4px; letter-spacing: -0.5px; }
-  #title p { font-size: 12px; opacity: 0.6; }
-
-  #controls {
-    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
-    background: rgba(255,255,255,0.08); padding: 10px;
-    border-radius: 40px; backdrop-filter: blur(14px);
-    border: 1px solid rgba(255,255,255,0.15); max-width: 92vw;
+  .logo-area { display: flex; align-items: center; gap: 8px; color: #0f766e; font-weight: bold; font-size: 18px; margin-right: 30px; }
+  .logo-area svg { width: 24px; height: 24px; fill: #0f766e; }
+  .nav-tabs { display: flex; gap: 20px; color: #64748b; font-size: 14px; font-weight: 500; }
+  .nav-tabs span.active { color: #0f766e; border-bottom: 2px solid #0f766e; padding-bottom: 19px; }
+  
+  /* 메인 레이아웃 */
+  #app-container { display: flex; flex: 1; overflow: hidden; }
+  
+  /* 좌측 툴바 */
+  #sidebar {
+    width: 80px; background: white; border-right: 1px solid #dde4eb;
+    display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 12px; z-index: 10;
   }
-  .layer-btn {
-    padding: 9px 18px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.2);
-    background: transparent; color: white; cursor: pointer; font-size: 13px;
-    transition: all 0.18s ease; white-space: nowrap;
-    display: flex; align-items: center; gap: 6px;
+  .tool-btn {
+    width: 60px; height: 60px; border-radius: 12px; border: 1px solid #e2e8f0; background: white;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s; color: #475569; font-size: 11px; gap: 4px;
   }
-  .layer-btn .dot { width: 9px; height: 9px; border-radius: 50%; opacity: 0.35; transition: opacity 0.2s; }
-  .layer-btn.active .dot { opacity: 1; }
-  .layer-btn.active { background: rgba(255,255,255,0.92); color: #12121f; border-color: transparent; }
-  .layer-btn:hover:not(.active) { background: rgba(255,255,255,0.15); }
-  #reset-btn { border-color: rgba(120,200,255,0.5); color: #a8d8ff; }
-  #reset-btn:hover { background: rgba(120,200,255,0.2); }
-
+  .tool-btn svg { width: 22px; height: 22px; fill: currentColor; }
+  .tool-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+  .tool-btn.active { background: #0f766e; color: white; border-color: #0f766e; box-shadow: 0 4px 12px rgba(15,118,110,0.3); }
+  
+  /* 3D 캔버스 영역 */
+  #canvas-container { flex: 1; position: relative; background: radial-gradient(circle at center, #ffffff 0%, #eef2f5 100%); }
+  
+  /* 우측 정보 패널 */
   #info-panel {
-    position: absolute; top: 20px; right: 20px; width: min(300px, calc(100vw - 40px));
-    background: rgba(16,16,28,0.92); backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.12); border-radius: 16px;
-    padding: 18px 20px; color: white; opacity: 0; transform: translateX(16px);
-    transition: opacity 0.25s, transform 0.25s; pointer-events: none;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    position: absolute; top: 20px; right: 20px; width: 280px; background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(10px); border: 1px solid #dde4eb; border-radius: 16px;
+    padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); pointer-events: none;
+    opacity: 0; transform: translateY(-10px); transition: all 0.3s ease;
   }
-  #info-panel.visible { opacity: 1; transform: translateX(0); }
-  #info-panel h2 { font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-  #info-panel .color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
-  #info-panel p { font-size: 12.5px; line-height: 1.65; opacity: 0.82; }
+  #info-panel.visible { opacity: 1; transform: translateY(0); }
+  #info-panel h3 { color: #0f766e; font-size: 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  #info-panel .status-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #fee2e2; color: #ef4444; }
+  #info-panel .status-badge.healthy { background: #dcfce7; color: #22c55e; }
+  #info-panel p { font-size: 13px; color: #475569; line-height: 1.5; margin-bottom: 12px; }
+  #info-panel .req-text { font-size: 12px; font-weight: bold; color: #ef4444; }
 
-  #hint {
-    position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
-    color: rgba(255,255,255,0.45); font-size: 11.5px; pointer-events: none;
-    white-space: nowrap;
+  /* 하단 상태바 */
+  #bottom-bar {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: white; padding: 10px 20px; border-radius: 30px; border: 1px solid #dde4eb;
+    display: flex; align-items: center; gap: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); z-index: 10;
   }
-  @media (max-width: 640px) {
-    #title h1 { font-size: 16px; }
-    .layer-btn { padding: 8px 12px; font-size: 12px; }
-    #hint { font-size: 10.5px; }
+  #msg { color: #475569; font-size: 14px; font-weight: 500; min-width: 250px; text-align: center; }
+  
+  /* 토스트 메시지 */
+  #toast {
+    position: absolute; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    background: rgba(15, 23, 42, 0.9); color: white; padding: 12px 24px; border-radius: 8px;
+    font-size: 14px; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 100;
   }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
-<div id="canvas-container"></div>
-<div id="title">
-  <h1>🦷 치아 해부학 3D</h1>
-  <p>치아를 클릭하면 각 층의 정보를 볼 수 있어요</p>
-</div>
 
-<div id="controls">
-  <button class="layer-btn active" data-layer="enamel"><span class="dot" style="background:#fafafa"></span>법랑질</button>
-  <button class="layer-btn active" data-layer="dentin"><span class="dot" style="background:#e8c890"></span>상아질</button>
-  <button class="layer-btn active" data-layer="pulp"><span class="dot" style="background:#e05a6a"></span>치수</button>
-  <button class="layer-btn" id="reset-btn">↻ 초기화</button>
-</div>
+<header>
+  <div class="logo-area">
+    <svg viewBox="0 0 24 24"><path d="M12 2C8.5 2 6 4.5 6 8c0 2.5 1.5 4.5 2 6c.5 1.5 1 3 1 5c0 1.5 1.5 3 3 3s3-1.5 3-3c0-2 .5-3.5 1-5c.5-1.5 2-3.5 2-6c0-3.5-2.5-6-6-6z"/></svg>
+    Dental Sim
+  </div>
+  <div class="nav-tabs">
+    <span class="active">3D 도감</span>
+    <span>치료 실습</span>
+    <span>퀴즈</span>
+  </div>
+</header>
 
-<div id="hint">드래그: 회전 · 휠: 확대/축소 · 클릭: 정보 보기</div>
+<div id="app-container">
+  <!-- 좌측 툴바 -->
+  <div id="sidebar">
+    <button class="tool-btn active" data-tool="inspect">
+      <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      검사
+    </button>
+    <button class="tool-btn" data-tool="scaler">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 3.5l6.5 13.5h-13L12 5.5z"/></svg>
+      스케일링
+    </button>
+    <button class="tool-btn" data-tool="drill">
+      <svg viewBox="0 0 24 24"><path d="M18 2H6v2h12V2zM6 6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V6H6zm2 2h8v10H8V8z"/></svg>
+      드릴
+    </button>
+    <button class="tool-btn" data-tool="fill">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      충전
+    </button>
+    <button class="tool-btn" data-tool="crown">
+      <svg viewBox="0 0 24 24"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>
+      크라운
+    </button>
+    <button class="tool-btn" data-tool="implant">
+      <svg viewBox="0 0 24 24"><path d="M12 2v20M8 6h8M8 10h8M8 14h8M8 18h8"/></svg>
+      임플란트
+    </button>
+  </div>
 
-<div id="info-panel">
-  <h2 id="info-title"></h2>
-  <p id="info-body"></p>
+  <!-- 3D 화면 -->
+  <div id="canvas-container">
+    <div id="info-panel">
+      <h3>치아 정보 <span id="tooth-id" class="status-badge">11번</span></h3>
+      <p id="tooth-desc">상태를 확인하세요.</p>
+      <div id="tooth-req" class="req-text"></div>
+    </div>
+
+    <div id="bottom-bar">
+      <div id="msg">치료할 치아를 선택하세요.</div>
+      <button onclick="resetGame()" style="background:#0f766e; color:white; border:none; padding:8px 16px; border-radius:20px; cursor:pointer; font-weight:bold;">새 환자</button>
+    </div>
+    
+    <div id="toast">알림</div>
+  </div>
 </div>
 
 <script type="importmap">
@@ -96,357 +143,458 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-// ============================================================
-// 1. 장면 / 카메라 / 렌더러
-// ============================================================
+// --- 1. 기본 세팅 ---
 const container = document.getElementById('canvas-container');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x12121f);
+scene.background = new THREE.Color(0xeef2f5);
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(4.5, 3.2, 6.5);
+const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+camera.position.set(0, 18, 16); // 위에서 비스듬히 내려다보는 뷰
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
-// 환경맵 (PBR 반사)
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-// ============================================================
-// 2. 조명
-// ============================================================
-scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+// --- 2. 조명 ---
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+dirLight.position.set(5, 15, 10);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -10;
+dirLight.shadow.camera.right = 10;
+dirLight.shadow.camera.top = 10;
+dirLight.shadow.camera.bottom = -10;
+scene.add(dirLight);
+const fillLight = new THREE.DirectionalLight(0x88aaff, 0.8);
+fillLight.position.set(-10, 5, -10);
+scene.add(fillLight);
 
-const key = new THREE.DirectionalLight(0xffffff, 2.2);
-key.position.set(6, 10, 8);
-key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
-key.shadow.camera.near = 1;
-key.shadow.camera.far = 40;
-key.shadow.camera.left = -8;
-key.shadow.camera.right = 8;
-key.shadow.camera.top = 8;
-key.shadow.camera.bottom = -8;
-key.shadow.bias = -0.0005;
-scene.add(key);
+// --- 3. 재질 ---
+const matTooth = new THREE.MeshPhysicalMaterial({ color: 0xfbfbf8, roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1, ior: 1.6 });
+const matGum = new THREE.MeshPhysicalMaterial({ color: 0xef8a94, roughness: 0.6, clearcoat: 0.2 });
+const matCavity = new THREE.MeshStandardMaterial({ color: 0x2a1b15, roughness: 0.8 }); // 썩은 치아
+const matFilling = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.3 }); // 아말감
+const matPlaque = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 1, transparent: true, opacity: 0.8 }); // 치석
+const matCrown = new THREE.MeshPhysicalMaterial({ color: 0xfcd34d, metalness: 0.6, roughness: 0.2 }); // 금니 크라운
+const matImplantScrew = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 });
+const matImplantTooth = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.1, clearcoat: 1 });
 
-const fill = new THREE.DirectionalLight(0x88aaff, 0.9);
-fill.position.set(-6, 2, -4);
-scene.add(fill);
+// --- 4. 치아 및 잇몸 생성 (아치형) ---
+const jawGroup = new THREE.Group();
+scene.add(jawGroup);
 
-const rim = new THREE.DirectionalLight(0xffb088, 0.6);
-rim.position.set(0, -4, 6);
-scene.add(rim);
+const teethData = [];
+const numTeeth = 14; // 아래턱 14개 (좌우 7개)
+const arcRadius = 6;
+const arcSpan = Math.PI * 1.1; // 아치 각도
 
-// 그림자 받는 바닥
-const ground = new THREE.Mesh(
-  new THREE.CircleGeometry(9, 64),
-  new THREE.ShadowMaterial({ opacity: 0.28 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -2.3;
-ground.receiveShadow = true;
-scene.add(ground);
+// 잇몸 (반원 형태)
+const gumGeo = new THREE.TorusGeometry(arcRadius, 1.2, 16, 64, arcSpan);
+const gumMesh = new THREE.Mesh(gumGeo, matGum);
+gumMesh.rotation.x = Math.PI / 2;
+gumMesh.rotation.z = -arcSpan / 2 + Math.PI / 2;
+gumMesh.position.y = -0.8;
+gumMesh.castShadow = true;
+gumMesh.receiveShadow = true;
+jawGroup.add(gumMesh);
 
-// ============================================================
-// 3. 재질
-// ============================================================
-const enamelMat = new THREE.MeshPhysicalMaterial({
-  color: 0xfbfbf8,
-  roughness: 0.12,
-  metalness: 0.0,
-  clearcoat: 1.0,
-  clearcoatRoughness: 0.08,
-  transmission: 0.12,
-  thickness: 0.6,
-  ior: 1.62,
-  transparent: true,
-  opacity: 0.96,
-});
+// 치아 생성 함수
+function createToothMesh(index, total) {
+  // 앞니, 송곳니, 어금니 구분에 따른 크기
+  const centerIdx = (total - 1) / 2;
+  const distFromCenter = Math.abs(index - centerIdx);
+  
+  let width = 0.7, height = 1.8, depth = 0.6;
+  if (distFromCenter < 2) { width = 0.8; height = 2.0; depth = 0.5; } // 앞니
+  else if (distFromCenter < 4) { width = 0.9; height = 1.7; depth = 0.8; } // 송곳니
+  else { width = 1.2; height = 1.5; depth = 1.2; } // 어금니
 
-const dentinMat = new THREE.MeshPhysicalMaterial({
-  color: 0xe6c48a,
-  roughness: 0.55,
-  metalness: 0.0,
-  clearcoat: 0.25,
-  clearcoatRoughness: 0.4,
-});
-
-const pulpMat = new THREE.MeshStandardMaterial({
-  color: 0xd04858,
-  roughness: 0.45,
-  emissive: 0x3a0a10,
-  emissiveIntensity: 0.6,
-});
-
-// ============================================================
-// 4. 치아 모델 (절차적 생성 - 대구치 molar)
-// ============================================================
-const tooth = new THREE.Group();
-
-// 4-1. 법랑질 크라운 (Lathe 회전체)
-const crownProfile = [
-  new THREE.Vector2(0.001, 0.00),
-  new THREE.Vector2(0.92, 0.00),
-  new THREE.Vector2(1.04, 0.14),
-  new THREE.Vector2(1.13, 0.40),
-  new THREE.Vector2(1.13, 0.62),
-  new THREE.Vector2(1.00, 0.84),
-  new THREE.Vector2(0.70, 0.96),
-  new THREE.Vector2(0.36, 1.01),
-  new THREE.Vector2(0.001, 1.03),
-];
-const enamelCrown = new THREE.Mesh(
-  new THREE.LatheGeometry(crownProfile, 72),
-  enamelMat
-);
-enamelCrown.castShadow = true;
-enamelCrown.userData.part = 'enamel';
-tooth.add(enamelCrown);
-
-// 4-2. 교두 (Cusp) - 4개
-const cusps = [
-  { x:  0.56, z:  0.56 },
-  { x: -0.56, z:  0.56 },
-  { x:  0.56, z: -0.56 },
-  { x: -0.56, z: -0.56 },
-];
-cusps.forEach(c => {
-  const m = new THREE.Mesh(
-    new THREE.SphereGeometry(0.34, 24, 20, 0, Math.PI * 2, 0, Math.PI / 2),
-    enamelMat
-  );
-  m.position.set(c.x, 1.0, c.z);
-  m.scale.y = 0.65;
-  m.castShadow = true;
-  m.userData.part = 'enamel';
-  tooth.add(m);
-});
-
-// 4-3. 상아질 크라운 (법랑질보다 살짝 작음)
-const dentinProfile = crownProfile.map(p =>
-  new THREE.Vector2(p.x * 0.82, p.y * 0.94)
-);
-const dentinCrown = new THREE.Mesh(
-  new THREE.LatheGeometry(dentinProfile, 56),
-  dentinMat
-);
-dentinCrown.userData.part = 'dentin';
-tooth.add(dentinCrown);
-
-// 상아질 교두
-cusps.forEach(c => {
-  const m = new THREE.Mesh(
-    new THREE.SphereGeometry(0.25, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-    dentinMat
-  );
-  m.position.set(c.x * 0.85, 0.93, c.z * 0.85);
-  m.scale.y = 0.65;
-  m.userData.part = 'dentin';
-  tooth.add(m);
-});
-
-// 4-4. 치근 (Root) 2개 - 상아질 외벽 + 내부 근관
-function makeRoot(xOff, zOff, tiltZ) {
-  const g = new THREE.Group();
-
-  // 치근 외벽 (상아질)
-  const rProfile = [];
-  for (let i = 0; i <= 20; i++) {
-    const t = i / 20;
-    const r = 0.46 * (1 - t * 0.88) + 0.015;
-    rProfile.push(new THREE.Vector2(r, -t * 2.0));
-  }
-  rProfile.unshift(new THREE.Vector2(0.001, 0.12));
-  rProfile.push(new THREE.Vector2(0.001, -2.0));
-  const rootMesh = new THREE.Mesh(
-    new THREE.LatheGeometry(rProfile, 36),
-    dentinMat
-  );
-  rootMesh.castShadow = true;
-  rootMesh.userData.part = 'dentin';
-  g.add(rootMesh);
-
-  // 근관 (치수)
-  const cProfile = [];
-  for (let i = 0; i <= 18; i++) {
-    const t = i / 18;
-    const r = 0.19 * (1 - t * 0.9) + 0.008;
-    cProfile.push(new THREE.Vector2(r, -t * 1.88));
-  }
-  cProfile.unshift(new THREE.Vector2(0.001, 0.05));
-  cProfile.push(new THREE.Vector2(0.001, -1.88));
-  const canal = new THREE.Mesh(
-    new THREE.LatheGeometry(cProfile, 24),
-    pulpMat
-  );
-  canal.userData.part = 'pulp';
-  g.add(canal);
-
-  g.position.set(xOff, 0, zOff);
-  g.rotation.z = tiltZ;
-  return g;
-}
-tooth.add(makeRoot(-0.52, 0, 0.14));
-tooth.add(makeRoot( 0.52, 0, -0.14));
-
-// 4-5. 치수강 (Pulp chamber)
-const pulpProfile = [
-  new THREE.Vector2(0.001, 0.10),
-  new THREE.Vector2(0.38, 0.10),
-  new THREE.Vector2(0.40, 0.38),
-  new THREE.Vector2(0.34, 0.62),
-  new THREE.Vector2(0.22, 0.80),
-  new THREE.Vector2(0.001, 0.84),
-];
-const pulpChamber = new THREE.Mesh(
-  new THREE.LatheGeometry(pulpProfile, 40),
-  pulpMat
-);
-pulpChamber.userData.part = 'pulp';
-tooth.add(pulpChamber);
-
-// 치수각 (Pulp horn) - 교두 안쪽으로 뻗은 부분
-cusps.forEach(c => {
-  const horn = new THREE.Mesh(
-    new THREE.ConeGeometry(0.09, 0.32, 12),
-    pulpMat
-  );
-  horn.position.set(c.x * 0.6, 0.72, c.z * 0.6);
-  horn.userData.part = 'pulp';
-  tooth.add(horn);
-});
-
-// 치아 전체 위치
-tooth.position.y = 0.25;
-scene.add(tooth);
-
-// ============================================================
-// 5. 컨트롤
-// ============================================================
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.06;
-controls.target.set(0, 0.25, 0);
-controls.minDistance = 3.2;
-controls.maxDistance = 16;
-controls.autoRotate = true;
-controls.autoRotateSpeed = 1.4;
-controls.addEventListener('start', () => { controls.autoRotate = false; });
-
-// ============================================================
-// 6. 클릭 → 레이캐스팅 → 정보 패널
-// ============================================================
-const raycaster = new THREE.Raycaster();
-const pointer = new THREE.Vector2();
-
-const infoMap = {
-  enamel: {
-    name: '법랑질 (Enamel)',
-    color: '#fafafa',
-    desc: '치아의 가장 바깥층이며 인체에서 가장 단단한 조직입니다. 96%가 무기질(하이드록시아파타이트)로 구성되어 있고, 한 번 손상되면 자연적으로 재생되지 않습니다. 교두와 크라운 표면을 덮고 있습니다.'
-  },
-  dentin: {
-    name: '상아질 (Dentin)',
-    color: '#e8c890',
-    desc: '법랑질 아래에 위치한 황색 층입니다. 수많은 상아세관(tubule)이 치수와 외부를 연결하며, 자극에 민감하게 반응합니다. 크라운에서는 법랑질에, 치근에서는 백악질에 덮여 있습니다.'
-  },
-  pulp: {
-    name: '치수 (Pulp)',
-    color: '#e05a6a',
-    desc: '신경과 혈관이 분포하는 치아의 중심부입니다. 치수강(크라운)과 근관(치근)으로 구성되며, 영양 공급·감각 전달·상아질 형성을 담당합니다. 염증(치수염) 시 극심한 통증을 유발합니다.'
-  }
-};
-
-const panel = document.getElementById('info-panel');
-const panelTitle = document.getElementById('info-title');
-const panelBody = document.getElementById('info-body');
-
-function showInfo(key) {
-  const info = infoMap[key];
-  if (!info) return;
-  panelTitle.innerHTML =
-    `<span class="color-dot" style="background:${info.color}; color:${info.color}"></span>${info.name}`;
-  panelBody.textContent = info.desc;
-  panel.classList.add('visible');
-}
-function hideInfo() { panel.classList.remove('visible'); }
-
-// 클릭 vs 드래그 구분
-let downPos = null;
-renderer.domElement.addEventListener('pointerdown', e => {
-  downPos = { x: e.clientX, y: e.clientY };
-});
-renderer.domElement.addEventListener('pointerup', e => {
-  if (!downPos) return;
-  const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
-  downPos = null;
-  if (moved > 5) return; // 드래그였음
-
-  const rect = renderer.domElement.getBoundingClientRect();
-  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-  raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(tooth.children, true);
-
-  for (const hit of hits) {
-    if (hit.object.visible && hit.object.userData.part) {
-      showInfo(hit.object.userData.part);
-      return;
+  const group = new THREE.Group();
+  
+  // 치관 (왕관)
+  const crownGeo = new THREE.BoxGeometry(width, height, depth, 4, 4, 4);
+  const pos = crownGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (y > 0) { // 위쪽 모서리 둥글게
+      pos.setX(i, pos.getX(i) * 0.8);
+      pos.setZ(i, pos.getZ(i) * 0.8);
+    }
+    if (y < 0) { // 아래쪽 뿌리 모양
+      pos.setX(i, pos.getX(i) * 0.6);
+      pos.setZ(i, pos.getZ(i) * 0.6);
     }
   }
-  hideInfo();
-});
+  crownGeo.computeVertexNormals();
+  
+  const crown = new THREE.Mesh(crownGeo, matTooth);
+  crown.castShadow = true;
+  crown.receiveShadow = true;
+  group.add(crown);
 
-// ============================================================
-// 7. 레이어 토글 버튼
-// ============================================================
-const layerGroups = { enamel: [], dentin: [], pulp: [] };
-tooth.traverse(o => {
-  if (o.userData.part) layerGroups[o.userData.part].push(o);
-});
+  // 하위 상태 객체 생성
+  const toothObj = {
+    id: group.id,
+    mesh: crown,
+    group: group,
+    status: 'healthy', // healthy, cavity, drilled, broken, missing, plaque
+    originalScale: { w: width, h: height, d: depth }
+  };
 
-document.querySelectorAll('.layer-btn[data-layer]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const layer = btn.dataset.layer;
-    const on = btn.classList.toggle('active');
-    layerGroups[layer].forEach(m => { m.visible = on; });
-    hideInfo();
+  crown.userData = toothObj;
+
+  // 치석 생성 (랜덤하게)
+  const plaqueMesh = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.55, width * 0.6, 0.4, 8), matPlaque);
+  plaqueMesh.position.y = -height/2 + 0.2;
+  plaqueMesh.visible = false;
+  group.add(plaqueMesh);
+  toothObj.plaqueMesh = plaqueMesh;
+
+  // 충치 구멍 (드릴로 파낼 부분)
+  const cavityMesh = new THREE.Mesh(new THREE.SphereGeometry(width * 0.3, 16, 16), matCavity);
+  cavityMesh.position.set(0, height/2 - 0.3, depth/2 - 0.1); // 상단 앞쪽
+  cavityMesh.visible = false;
+  group.add(cavityMesh);
+  toothObj.cavityMesh = cavityMesh;
+
+  // 충전재 (때울 부분)
+  const fillingMesh = new THREE.Mesh(new THREE.SphereGeometry(width * 0.3, 16, 16), matFilling);
+  fillingMesh.position.copy(cavityMesh.position);
+  fillingMesh.visible = false;
+  group.add(fillingMesh);
+  toothObj.fillingMesh = fillingMesh;
+
+  // 크라운 캡
+  const crownCap = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.55, width * 0.5, height * 0.8, 16), matCrown);
+  crownCap.position.y = height * 0.1;
+  crownCap.visible = false;
+  group.add(crownCap);
+  toothObj.crownCap = crownCap;
+
+  // 임플란트 나사
+  const screw = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.2, width * 0.1, height * 1.5, 8), matImplantScrew);
+  screw.position.y = -height * 0.5;
+  screw.visible = false;
+  group.add(screw);
+  
+  // 임플란트 보철 치아
+  const implantTooth = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.45, width * 0.4, height * 0.8, 16), matImplantTooth);
+  implantTooth.position.y = height * 0.2;
+  implantTooth.visible = false;
+  group.add(implantTooth);
+
+  toothObj.screw = screw;
+  toothObj.implantTooth = implantTooth;
+
+  return toothObj;
+}
+
+// 치아 배치
+const startAngle = -arcSpan / 2;
+const angleStep = arcSpan / (numTeeth - 1);
+
+for (let i = 0; i < numTeeth; i++) {
+  const angle = startAngle + i * angleStep;
+  const toothObj = createToothMesh(i, numTeeth);
+  
+  const x = Math.sin(angle) * arcRadius;
+  const z = Math.cos(angle) * arcRadius;
+  
+  toothObj.group.position.set(x, 0, z);
+  toothObj.group.rotation.y = angle + Math.PI; // 잇몸 중심 바깥쪽을 향하도록
+  
+  jawGroup.add(toothObj.group);
+  teethData.push(toothObj);
+}
+
+// --- 5. 카메라 컨트롤 ---
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.target.set(0, 0, 2);
+controls.minDistance = 8;
+controls.maxDistance = 25;
+controls.maxPolarAngle = Math.PI / 2 - 0.1; // 바닥 아래로 못 보게
+
+// --- 6. 레이캐스팅 (마우스 클릭) ---
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let selectedTooth = null;
+let activeTool = 'inspect';
+
+// 툴 버튼 이벤트
+document.querySelectorAll('.tool-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTool = btn.dataset.tool;
+    showMessage(`도구 변경: ${btn.textContent.trim()}`);
+    if (selectedTooth) updateInfoPanel(selectedTooth);
   });
 });
 
-document.getElementById('reset-btn').addEventListener('click', () => {
-  document.querySelectorAll('.layer-btn[data-layer]').forEach(b => b.classList.add('active'));
-  Object.values(layerGroups).forEach(g => g.forEach(m => { m.visible = true; }));
-  camera.position.set(4.5, 3.2, 6.5);
-  controls.target.set(0, 0.25, 0);
-  controls.autoRotate = true;
-  hideInfo();
+// 3D 모델 클릭 이벤트
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  // 드래그 방지 (간단한 처리)
+  const startX = e.clientX;
+  const startY = e.clientY;
+  
+  const onPointerUp = (upEvent) => {
+    const dist = Math.hypot(upEvent.clientX - startX, upEvent.clientY - startY);
+    if (dist > 5) return; // 드래그였으면 무시
+    renderer.domElement.removeEventListener('pointerup', onPointerUp);
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((upEvent.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((upEvent.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+    
+    // 클릭 가능한 메쉬들만 추출 (group의 첫번째 자식인 crown)
+    const meshes = teethData.map(t => t.mesh);
+    const intersects = raycaster.intersectObjects(meshes);
+
+    if (intersects.length > 0) {
+      const hitMesh = intersects[0].object;
+      const tooth = hitMesh.userData;
+      selectTooth(tooth);
+      performAction(tooth, activeTool);
+    } else {
+      // 빈 곳 클릭 시 선택 해제
+      if (selectedTooth) {
+        selectedTooth.mesh.material = matTooth;
+        selectedTooth = null;
+        document.getElementById('info-panel').classList.remove('visible');
+        showMessage('치료할 치아를 선택하세요.');
+      }
+    }
+  };
+  renderer.domElement.addEventListener('pointerup', onPointerUp);
 });
 
-// ============================================================
-// 8. 리사이즈 & 렌더 루프
-// ============================================================
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+// 치아 선택 로직
+function selectTooth(tooth) {
+  if (selectedTooth === tooth) return; // 이미 선택됨
+  
+  if (selectedTooth) selectedTooth.mesh.material = matTooth; // 이전 선택 초기화
+  
+  selectedTooth = tooth;
+  // 선택 시 하이라이트 (약간의 색상 변화)
+  tooth.mesh.material = new THREE.MeshPhysicalMaterial({ color: 0xe0f2fe, roughness: 0.2, clearcoat: 1 });
+  
+  updateInfoPanel(tooth);
+}
 
+// 정보 패널 업데이트
+function updateInfoPanel(tooth) {
+  const panel = document.getElementById('info-panel');
+  panel.classList.add('visible');
+  
+  const idBadge = document.getElementById('tooth-id');
+  const desc = document.getElementById('tooth-desc');
+  const req = document.getElementById('tooth-req');
+
+  // 치아 번호 생성 (가짜 번호 매기기)
+  const idx = teethData.indexOf(tooth);
+  idBadge.textContent = `#${30 + idx}`;
+  
+  idBadge.className = 'status-badge';
+  req.textContent = '';
+
+  switch (tooth.status) {
+    case 'healthy':
+      idBadge.textContent += ' (건강)';
+      idBadge.classList.add('healthy');
+      desc.textContent = '건강한 치아입니다. 특별한 치료가 필요하지 않습니다.';
+      break;
+    case 'cavity':
+      idBadge.textContent += ' (충치)';
+      desc.textContent = '치아 표면에 충치가 발생했습니다. 드릴로 썩은 부분을 제거해야 합니다.';
+      if (activeTool !== 'drill') req.textContent = '👉 드릴 도구를 선택하여 제거하세요.';
+      break;
+    case 'drilled':
+      idBadge.textContent += ' (충치 제거됨)';
+      desc.textContent = '충치가 제거되어 구멍이 뚫려있습니다. 충전재로 메꿔야 합니다.';
+      if (activeTool !== 'fill') req.textContent = '👉 충전 도구를 선택하여 메꾸세요.';
+      break;
+    case 'broken':
+      idBadge.textContent += ' (파절)';
+      desc.textContent = '치아가 일부 부러지거나 손상되었습니다. 크라운을 씌워 보호해야 합니다.';
+      if (activeTool !== 'crown') req.textContent = '👉 크라운 도구를 선택하여 씌우세요.';
+      break;
+    case 'missing':
+      idBadge.textContent += ' (상실)';
+      desc.textContent = '치아가 완전히 빠져있습니다. 임플란트 식립이 필요합니다.';
+      if (activeTool !== 'implant') req.textContent = '👉 임플란트 도구를 선택하여 식립하세요.';
+      break;
+    case 'plaque':
+      idBadge.textContent += ' (치석)';
+      desc.textContent = '치아와 잇몸 사이에 치석이 끼어 있습니다. 스케일링이 필요합니다.';
+      if (activeTool !== 'scaler') req.textContent = '👉 스케일링 도구를 선택하여 제거하세요.';
+      break;
+    case 'treated':
+      idBadge.textContent += ' (치료 완료)';
+      idBadge.classList.add('healthy');
+      desc.textContent = '치료가 완료된 치아입니다. 더 이상의 조치는 필요하지 않습니다.';
+      break;
+  }
+}
+
+// --- 7. 게임 로직 (치료 수행) ---
+function performAction(tooth, tool) {
+  if (tooth.status === 'treated' || tooth.status === 'healthy') {
+    if (tool !== 'inspect') showToast('이미 건강한 치아입니다!');
+    return;
+  }
+
+  switch (tool) {
+    case 'drill':
+      if (tooth.status === 'cavity') {
+        tooth.cavityMesh.visible = true;
+        tooth.status = 'drilled';
+        showToast('🦷 충치를 파냈습니다! 충전재로 메꾸세요.');
+        updateInfoPanel(tooth);
+      } else {
+        showToast('드릴이 필요하지 않습니다.');
+      }
+      break;
+
+    case 'fill':
+      if (tooth.status === 'drilled') {
+        tooth.cavityMesh.visible = false;
+        tooth.fillingMesh.visible = true;
+        tooth.status = 'treated';
+        showToast('✨ 충전 완료! 치료가 끝났습니다.');
+        updateInfoPanel(tooth);
+      } else {
+        showToast('충전할 구멍이 없습니다.');
+      }
+      break;
+
+    case 'scaler':
+      if (tooth.status === 'plaque') {
+        tooth.plaqueMesh.visible = false;
+        tooth.status = 'treated';
+        showToast('✨ 스케일링 완료! 치석이 제거되었습니다.');
+        updateInfoPanel(tooth);
+      } else {
+        showToast('제거할 치석이 없습니다.');
+      }
+      break;
+
+    case 'crown':
+      if (tooth.status === 'broken') {
+        tooth.crownCap.visible = true;
+        tooth.status = 'treated';
+        showToast('👑 크라운 장착 완료!');
+        updateInfoPanel(tooth);
+      } else {
+        showToast('크라운이 필요하지 않습니다.');
+      }
+      break;
+
+    case 'implant':
+      if (tooth.status === 'missing') {
+        tooth.crown.visible = false; // 기존 치아 숨김
+        tooth.screw.visible = true;
+        tooth.implantTooth.visible = true;
+        tooth.status = 'treated';
+        showToast('🔩 임플란트 식립 완료!');
+        updateInfoPanel(tooth);
+      } else {
+        showToast('임플란트가 필요하지 않습니다.');
+      }
+      break;
+
+    case 'inspect':
+      showMessage(`선택된 치아: ${tooth.status} 상태`);
+      break;
+  }
+}
+
+// --- 8. UI 및 게임 초기화 ---
+function showToast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function showMessage(text) {
+  document.getElementById('msg').textContent = text;
+}
+
+function resetGame() {
+  // 기존 선택 해제
+  if (selectedTooth) {
+    selectedTooth.mesh.material = matTooth;
+    selectedTooth = null;
+  }
+  document.getElementById('info-panel').classList.remove('visible');
+  document.querySelector('.tool-btn[data-tool="inspect"]').click();
+  
+  teethData.forEach(tooth => {
+    // 기본 초기화
+    tooth.status = 'healthy';
+    tooth.cavityMesh.visible = false;
+    tooth.fillingMesh.visible = false;
+    tooth.plaqueMesh.visible = false;
+    tooth.crownCap.visible = false;
+    tooth.screw.visible = false;
+    tooth.implantTooth.visible = false;
+    tooth.crown.visible = true;
+    
+    // 랜덤하게 질병 부여 (확률 조정)
+    const rand = Math.random();
+    if (rand < 0.2) {
+      tooth.status = 'cavity';
+    } else if (rand < 0.35) {
+      tooth.status = 'plaque';
+      tooth.plaqueMesh.visible = true;
+    } else if (rand < 0.45) {
+      tooth.status = 'broken';
+      // 부러진 모양 흉내 (살짝 작게)
+      tooth.crown.scale.set(0.8, 0.6, 0.8);
+      tooth.crown.position.y = -0.2;
+    } else if (rand < 0.55) {
+      tooth.status = 'missing';
+      tooth.crown.visible = false;
+    } else {
+      // 정상 크기로 복구
+      tooth.crown.scale.set(1, 1, 1);
+      tooth.crown.position.y = 0;
+    }
+  });
+  
+  showMessage('새 환자가 도착했습니다. 구강 상태를 확인하세요!');
+}
+
+// 시작 시 환자 세팅
+resetGame();
+
+// --- 9. 렌더링 루프 ---
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
 }
 animate();
+
+// 리사이즈
+window.addEventListener('resize', () => {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
 </script>
 </body>
 </html>
