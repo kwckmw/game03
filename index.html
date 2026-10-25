@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🦷 치아 해부학 3D 학습 도구</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif; overflow: hidden; background: #12121f; }
+  #canvas-container { width: 100vw; height: 100vh; }
+
+  #title {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    color: white; text-align: center; pointer-events: none;
+  }
+  #title h1 { font-size: 20px; margin-bottom: 4px; letter-spacing: -0.5px; }
+  #title p { font-size: 12px; opacity: 0.6; }
+
+  #controls {
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    background: rgba(255,255,255,0.08); padding: 10px;
+    border-radius: 40px; backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.15); max-width: 92vw;
+  }
+  .layer-btn {
+    padding: 9px 18px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.2);
+    background: transparent; color: white; cursor: pointer; font-size: 13px;
+    transition: all 0.18s ease; white-space: nowrap;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .layer-btn .dot { width: 9px; height: 9px; border-radius: 50%; opacity: 0.35; transition: opacity 0.2s; }
+  .layer-btn.active .dot { opacity: 1; }
+  .layer-btn.active { background: rgba(255,255,255,0.92); color: #12121f; border-color: transparent; }
+  .layer-btn:hover:not(.active) { background: rgba(255,255,255,0.15); }
+  #reset-btn { border-color: rgba(120,200,255,0.5); color: #a8d8ff; }
+  #reset-btn:hover { background: rgba(120,200,255,0.2); }
+
+  #info-panel {
+    position: absolute; top: 20px; right: 20px; width: min(300px, calc(100vw - 40px));
+    background: rgba(16,16,28,0.92); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 16px;
+    padding: 18px 20px; color: white; opacity: 0; transform: translateX(16px);
+    transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  #info-panel.visible { opacity: 1; transform: translateX(0); }
+  #info-panel h2 { font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  #info-panel .color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
+  #info-panel p { font-size: 12.5px; line-height: 1.65; opacity: 0.82; }
+
+  #hint {
+    position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,0.45); font-size: 11.5px; pointer-events: none;
+    white-space: nowrap;
+  }
+  @media (max-width: 640px) {
+    #title h1 { font-size: 16px; }
+    .layer-btn { padding: 8px 12px; font-size: 12px; }
+    #hint { font-size: 10.5px; }
+  }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+<div id="title">
+  <h1>🦷 치아 해부학 3D</h1>
+  <p>치아를 클릭하면 각 층의 정보를 볼 수 있어요</p>
+</div>
+
+<div id="controls">
+  <button class="layer-btn active" data-layer="enamel"><span class="dot" style="background:#fafafa"></span>법랑질</button>
+  <button class="layer-btn active" data-layer="dentin"><span class="dot" style="background:#e8c890"></span>상아질</button>
+  <button class="layer-btn active" data-layer="pulp"><span class="dot" style="background:#e05a6a"></span>치수</button>
+  <button class="layer-btn" id="reset-btn">↻ 초기화</button>
+</div>
+
+<div id="hint">드래그: 회전 · 휠: 확대/축소 · 클릭: 정보 보기</div>
+
+<div id="info-panel">
+  <h2 id="info-title"></h2>
+  <p id="info-body"></p>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// ============================================================
+// 1. 장면 / 카메라 / 렌더러
+// ============================================================
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x12121f);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(4.5, 3.2, 6.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+// 환경맵 (PBR 반사)
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+// ============================================================
+// 2. 조명
+// ============================================================
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(6, 10, 8);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 1;
+key.shadow.camera.far = 40;
+key.shadow.camera.left = -8;
+key.shadow.camera.right = 8;
+key.shadow.camera.top = 8;
+key.shadow.camera.bottom = -8;
+key.shadow.bias = -0.0005;
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0x88aaff, 0.9);
+fill.position.set(-6, 2, -4);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffb088, 0.6);
+rim.position.set(0, -4, 6);
+scene.add(rim);
+
+// 그림자 받는 바닥
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(9, 64),
+  new THREE.ShadowMaterial({ opacity: 0.28 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -2.3;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ============================================================
+// 3. 재질
+// ============================================================
+const enamelMat = new THREE.MeshPhysicalMaterial({
+  color: 0xfbfbf8,
+  roughness: 0.12,
+  metalness: 0.0,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.08,
+  transmission: 0.12,
+  thickness: 0.6,
+  ior: 1.62,
+  transparent: true,
+  opacity: 0.96,
+});
+
+const dentinMat = new THREE.MeshPhysicalMaterial({
+  color: 0xe6c48a,
+  roughness: 0.55,
+  metalness: 0.0,
+  clearcoat: 0.25,
+  clearcoatRoughness: 0.4,
+});
+
+const pulpMat = new THREE.MeshStandardMaterial({
+  color: 0xd04858,
+  roughness: 0.45,
+  emissive: 0x3a0a10,
+  emissiveIntensity: 0.6,
+});
+
+// ============================================================
+// 4. 치아 모델 (절차적 생성 - 대구치 molar)
+// ============================================================
+const tooth = new THREE.Group();
+
+// 4-1. 법랑질 크라운 (Lathe 회전체)
+const crownProfile = [
+  new THREE.Vector2(0.001, 0.00),
+  new THREE.Vector2(0.92, 0.00),
+  new THREE.Vector2(1.04, 0.14),
+  new THREE.Vector2(1.13, 0.40),
+  new THREE.Vector2(1.13, 0.62),
+  new THREE.Vector2(1.00, 0.84),
+  new THREE.Vector2(0.70, 0.96),
+  new THREE.Vector2(0.36, 1.01),
+  new THREE.Vector2(0.001, 1.03),
+];
+const enamelCrown = new THREE.Mesh(
+  new THREE.LatheGeometry(crownProfile, 72),
+  enamelMat
+);
+enamelCrown.castShadow = true;
+enamelCrown.userData.part = 'enamel';
+tooth.add(enamelCrown);
+
+// 4-2. 교두 (Cusp) - 4개
+const cusps = [
+  { x:  0.56, z:  0.56 },
+  { x: -0.56, z:  0.56 },
+  { x:  0.56, z: -0.56 },
+  { x: -0.56, z: -0.56 },
+];
+cusps.forEach(c => {
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(0.34, 24, 20, 0, Math.PI * 2, 0, Math.PI / 2),
+    enamelMat
+  );
+  m.position.set(c.x, 1.0, c.z);
+  m.scale.y = 0.65;
+  m.castShadow = true;
+  m.userData.part = 'enamel';
+  tooth.add(m);
+});
+
+// 4-3. 상아질 크라운 (법랑질보다 살짝 작음)
+const dentinProfile = crownProfile.map(p =>
+  new THREE.Vector2(p.x * 0.82, p.y * 0.94)
+);
+const dentinCrown = new THREE.Mesh(
+  new THREE.LatheGeometry(dentinProfile, 56),
+  dentinMat
+);
+dentinCrown.userData.part = 'dentin';
+tooth.add(dentinCrown);
+
+// 상아질 교두
+cusps.forEach(c => {
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+    dentinMat
+  );
+  m.position.set(c.x * 0.85, 0.93, c.z * 0.85);
+  m.scale.y = 0.65;
+  m.userData.part = 'dentin';
+  tooth.add(m);
+});
+
+// 4-4. 치근 (Root) 2개 - 상아질 외벽 + 내부 근관
+function makeRoot(xOff, zOff, tiltZ) {
+  const g = new THREE.Group();
+
+  // 치근 외벽 (상아질)
+  const rProfile = [];
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    const r = 0.46 * (1 - t * 0.88) + 0.015;
+    rProfile.push(new THREE.Vector2(r, -t * 2.0));
+  }
+  rProfile.unshift(new THREE.Vector2(0.001, 0.12));
+  rProfile.push(new THREE.Vector2(0.001, -2.0));
+  const rootMesh = new THREE.Mesh(
+    new THREE.LatheGeometry(rProfile, 36),
+    dentinMat
+  );
+  rootMesh.castShadow = true;
+  rootMesh.userData.part = 'dentin';
+  g.add(rootMesh);
+
+  // 근관 (치수)
+  const cProfile = [];
+  for (let i = 0; i <= 18; i++) {
+    const t = i / 18;
+    const r = 0.19 * (1 - t * 0.9) + 0.008;
+    cProfile.push(new THREE.Vector2(r, -t * 1.88));
+  }
+  cProfile.unshift(new THREE.Vector2(0.001, 0.05));
+  cProfile.push(new THREE.Vector2(0.001, -1.88));
+  const canal = new THREE.Mesh(
+    new THREE.LatheGeometry(cProfile, 24),
+    pulpMat
+  );
+  canal.userData.part = 'pulp';
+  g.add(canal);
+
+  g.position.set(xOff, 0, zOff);
+  g.rotation.z = tiltZ;
+  return g;
+}
+tooth.add(makeRoot(-0.52, 0, 0.14));
+tooth.add(makeRoot( 0.52, 0, -0.14));
+
+// 4-5. 치수강 (Pulp chamber)
+const pulpProfile = [
+  new THREE.Vector2(0.001, 0.10),
+  new THREE.Vector2(0.38, 0.10),
+  new THREE.Vector2(0.40, 0.38),
+  new THREE.Vector2(0.34, 0.62),
+  new THREE.Vector2(0.22, 0.80),
+  new THREE.Vector2(0.001, 0.84),
+];
+const pulpChamber = new THREE.Mesh(
+  new THREE.LatheGeometry(pulpProfile, 40),
+  pulpMat
+);
+pulpChamber.userData.part = 'pulp';
+tooth.add(pulpChamber);
+
+// 치수각 (Pulp horn) - 교두 안쪽으로 뻗은 부분
+cusps.forEach(c => {
+  const horn = new THREE.Mesh(
+    new THREE.ConeGeometry(0.09, 0.32, 12),
+    pulpMat
+  );
+  horn.position.set(c.x * 0.6, 0.72, c.z * 0.6);
+  horn.userData.part = 'pulp';
+  tooth.add(horn);
+});
+
+// 치아 전체 위치
+tooth.position.y = 0.25;
+scene.add(tooth);
+
+// ============================================================
+// 5. 컨트롤
+// ============================================================
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 0.25, 0);
+controls.minDistance = 3.2;
+controls.maxDistance = 16;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.4;
+controls.addEventListener('start', () => { controls.autoRotate = false; });
+
+// ============================================================
+// 6. 클릭 → 레이캐스팅 → 정보 패널
+// ============================================================
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+const infoMap = {
+  enamel: {
+    name: '법랑질 (Enamel)',
+    color: '#fafafa',
+    desc: '치아의 가장 바깥층이며 인체에서 가장 단단한 조직입니다. 96%가 무기질(하이드록시아파타이트)로 구성되어 있고, 한 번 손상되면 자연적으로 재생되지 않습니다. 교두와 크라운 표면을 덮고 있습니다.'
+  },
+  dentin: {
+    name: '상아질 (Dentin)',
+    color: '#e8c890',
+    desc: '법랑질 아래에 위치한 황색 층입니다. 수많은 상아세관(tubule)이 치수와 외부를 연결하며, 자극에 민감하게 반응합니다. 크라운에서는 법랑질에, 치근에서는 백악질에 덮여 있습니다.'
+  },
+  pulp: {
+    name: '치수 (Pulp)',
+    color: '#e05a6a',
+    desc: '신경과 혈관이 분포하는 치아의 중심부입니다. 치수강(크라운)과 근관(치근)으로 구성되며, 영양 공급·감각 전달·상아질 형성을 담당합니다. 염증(치수염) 시 극심한 통증을 유발합니다.'
+  }
+};
+
+const panel = document.getElementById('info-panel');
+const panelTitle = document.getElementById('info-title');
+const panelBody = document.getElementById('info-body');
+
+function showInfo(key) {
+  const info = infoMap[key];
+  if (!info) return;
+  panelTitle.innerHTML =
+    `<span class="color-dot" style="background:${info.color}; color:${info.color}"></span>${info.name}`;
+  panelBody.textContent = info.desc;
+  panel.classList.add('visible');
+}
+function hideInfo() { panel.classList.remove('visible'); }
+
+// 클릭 vs 드래그 구분
+let downPos = null;
+renderer.domElement.addEventListener('pointerdown', e => {
+  downPos = { x: e.clientX, y: e.clientY };
+});
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downPos) return;
+  const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+  downPos = null;
+  if (moved > 5) return; // 드래그였음
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(tooth.children, true);
+
+  for (const hit of hits) {
+    if (hit.object.visible && hit.object.userData.part) {
+      showInfo(hit.object.userData.part);
+      return;
+    }
+  }
+  hideInfo();
+});
+
+// ============================================================
+// 7. 레이어 토글 버튼
+// ============================================================
+const layerGroups = { enamel: [], dentin: [], pulp: [] };
+tooth.traverse(o => {
+  if (o.userData.part) layerGroups[o.userData.part].push(o);
+});
+
+document.querySelectorAll('.layer-btn[data-layer]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const layer = btn.dataset.layer;
+    const on = btn.classList.toggle('active');
+    layerGroups[layer].forEach(m => { m.visible = on; });
+    hideInfo();
+  });
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  document.querySelectorAll('.layer-btn[data-layer]').forEach(b => b.classList.add('active'));
+  Object.values(layerGroups).forEach(g => g.forEach(m => { m.visible = true; }));
+  camera.position.set(4.5, 3.2, 6.5);
+  controls.target.set(0, 0.25, 0);
+  controls.autoRotate = true;
+  hideInfo();
+});
+
+// ============================================================
+// 8. 리사이즈 & 렌더 루프
+// ============================================================
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
